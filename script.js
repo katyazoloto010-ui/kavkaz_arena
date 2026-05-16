@@ -1,6 +1,6 @@
 const MAX_ROUNDS = 8;
-const CUP_MIN_READY = 60;
-const CUP_GOOD_READY = 80;
+const CUP_MIN_READY = 100;
+const CUP_GOOD_READY = 100;
 const SHARED_RESOURCE_LIMIT = 12;
 
 const regionTemplates = [
@@ -151,7 +151,7 @@ const playerActions = [
   {
     key: "cup",
     title: "Готовить Кубок Кавказа",
-    desc: "Расход: 3 ресурса. Повышает готовность финального события. Минимум для проведения — 60.",
+    desc: "Расход: 3 ресурса. Повышает готовность финального события. Для проведения нужно 100% готовности.",
     cost: 3,
     cup: 14,
     effect: { tourism: 3, culture: 3 }
@@ -458,7 +458,7 @@ function startCupFinal() {
   const tourism = avg(state.regions.map(r => r.stats.tourism));
 
   if (state.cupReadiness < CUP_MIN_READY) {
-    addLog("Кубок не удалось провести полноценно: готовность ниже минимального уровня.");
+    addLog(`Кубок не проведён: готовность составляет ${state.cupReadiness}%, а для проведения нужно 100%.`);
     finishGame("failed_cup");
     return;
   }
@@ -473,7 +473,7 @@ function startCupFinal() {
   let successStages = 0;
 
   stages.forEach(stage => {
-    const readinessBonus = Math.floor(state.cupReadiness / 10);
+    const readinessBonus = state.cupReadiness === 100 ? 10 : 0;
     const score = stage.base + readinessBonus + randomInt(-8, 8);
     if (score >= stage.need) {
       successStages++;
@@ -516,13 +516,13 @@ function finishGame(cupResult) {
   const activity = avg(state.regions.map(r => r.stats.activity));
 
   if (cupResult === "strong_cup" && stability >= 55 && integration >= 55) {
-    showEnd("Основная победа", "Кубок Кавказа по хоббихорсингу успешно проведён. Большинство этапов прошло хорошо, регионы сохранили стабильность и усилили межрегиональную интеграцию.");
+    showEnd("Основная победа", "Кубок Кавказа по хоббихорсингу успешно проведён: готовность достигла 100%, большинство этапов прошло хорошо, регионы сохранили стабильность и усилили межрегиональную интеграцию.");
   } else if (culture >= 72 && activity >= 68) {
     showEnd("Культурная победа", "Даже без идеального Кубка регионы достигли высокого уровня культурного развития и общественной активности. Округ укрепил культурную самобытность.");
   } else if (integration >= 75 && stability >= 50) {
     showEnd("Интеграционная победа", "Игроки выполнили крупные межрегиональные проекты и добились устойчивого взаимодействия субъектов округа.");
   } else if (cupResult === "failed_cup") {
-    showEnd("Общий проигрыш", "Кубок не удалось провести полноценно: готовность оказалась ниже минимального уровня. Команда не выполнила ключевую игровую цель.");
+    showEnd("Общий проигрыш", "Кубок не удалось провести: шкала готовности не достигла 100%. Команда не выполнила ключевую игровую цель.");
   } else {
     showEnd("Общий проигрыш", "Кубок прошёл недостаточно успешно, а показатели регионов не позволили получить культурную или интеграционную победу.");
   }
