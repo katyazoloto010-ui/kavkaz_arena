@@ -1,118 +1,111 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>HobbyHorse Кавказ Арена — JS Game</title>
-  <link rel="stylesheet" href="assets/style.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HobbyHorse Кавказ Арена</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="app-shell">
+  <div class="app">
     <header class="hero">
       <div>
-        <p class="eyebrow">Интерактивная кооперативная стратегия</p>
+        <p class="eyebrow">Онлайн-кооперативная стратегия · демонстрационный прототип</p>
         <h1>HobbyHorse Кавказ Арена</h1>
-        <p class="lead">Развивайте регионы СКФО, решайте кризисы, поддерживайте баланс округа и подготовьте Кубок Кавказа.</p>
+        <p class="subtitle">
+          Игрок управляет одним регионом СКФО, остальные регионы действуют автоматически.
+          Цель — сохранить стабильность округа и подготовить Кубок Кавказа по хоббихорсингу.
+        </p>
       </div>
-      <div class="hero-actions">
-        <button class="btn ghost" id="rulesBtn">Правила</button>
-        <button class="btn ghost" id="deckBtn">Колода</button>
-        <button class="btn danger" id="resetBtn">Новая игра</button>
+      <div class="hero-card">
+        <span>Раунд</span>
+        <strong id="roundView">1 / 8</strong>
       </div>
     </header>
 
-    <section class="start-panel" id="startPanel">
-      <div class="start-copy">
-        <p class="eyebrow">Старт кампании</p>
-        <h2>Выберите роль</h2>
-        <p>Роль задаёт стиль прохождения. После выбора начинается кампания на 18 ходов.</p>
-      </div>
-      <div class="role-grid" id="roleGrid"></div>
+    <section id="setupScreen" class="panel setup">
+      <h2>Выберите регион игрока</h2>
+      <p>Остальными регионами будут управлять боты. Каждый регион имеет свой бонус.</p>
+      <div id="regionSelect" class="region-grid"></div>
+      <button id="startBtn" class="primary-btn" disabled>Начать игру</button>
     </section>
 
-    <main class="game-layout" id="gameLayout" hidden>
-      <aside class="side-panel side-left">
-        <section class="panel campaign-panel">
-          <div class="panel-top">
-            <p class="eyebrow">Кампания</p>
-            <span class="pill" id="rolePill">Без роли</span>
+    <main id="gameScreen" class="game hidden">
+      <section class="top-grid">
+        <div class="panel">
+          <div class="section-title">
+            <h2>Общее состояние округа</h2>
+            <span id="phaseBadge" class="badge">Ход игрока</span>
           </div>
-          <h2>Ход <span id="turnNow">1</span> / <span id="turnMax">18</span></h2>
-          <div class="meter-row">
-            <span>Интеграция округа</span><strong id="integrationValue">0%</strong>
-            <div class="meter"><i id="integrationBar"></i></div>
-          </div>
-          <div class="meter-row">
-            <span>Подготовка Кубка</span><strong id="cupValue">0%</strong>
-            <div class="meter"><i id="cupBar"></i></div>
-          </div>
-          <div class="resource-grid" id="resourceGrid"></div>
-        </section>
 
-        <section class="panel actions-panel">
-          <p class="eyebrow">Действия</p>
-          <button class="btn primary block" id="drawBtn">Получить 3 карточки</button>
-          <button class="btn green block" id="councilBtn">Совет округа</button>
-          <button class="btn green block" id="projectsBtn">Межрегиональные проекты</button>
-          <button class="btn gold block" id="cupBtn">Провести Кубок</button>
-          <button class="btn ghost block" id="saveBtn">Сохранить</button>
-          <p class="hint" id="actionHint">Выберите регион, затем получите 3 карточки и примените одну из них.</p>
-        </section>
-      </aside>
-
-      <section class="center-panel">
-        <section class="panel board-panel">
-          <div class="section-head">
-            <div>
-              <p class="eyebrow">Игровое поле</p>
-              <h2>Карта регионов СКФО</h2>
+          <div class="district-bars">
+            <div class="metric">
+              <div class="metric-label"><span>Стабильность округа</span><b id="districtStabilityText">0</b></div>
+              <div class="bar"><i id="districtStabilityBar"></i></div>
             </div>
-            <div class="legend"><span class="dot stable"></span> стабильно <span class="dot tension"></span> напряжение <span class="dot crisis"></span> кризис</div>
-          </div>
-          <div class="regions-grid" id="regionsGrid"></div>
-        </section>
-
-        <section class="panel turn-panel">
-          <div class="section-head compact">
-            <div>
-              <p class="eyebrow">Ход игрока</p>
-              <h2 id="turnTitle">Выберите регион</h2>
+            <div class="metric">
+              <div class="metric-label"><span>Интеграция</span><b id="districtIntegrationText">0</b></div>
+              <div class="bar"><i id="districtIntegrationBar"></i></div>
             </div>
-            <span class="pill" id="selectedRegionPill">Регион не выбран</span>
+            <div class="metric">
+              <div class="metric-label"><span>Готовность Кубка</span><b id="cupReadinessText">0</b></div>
+              <div class="bar"><i id="cupReadinessBar"></i></div>
+            </div>
           </div>
-          <div class="next-step" id="nextStep">Сначала выберите регион на карте. Потом получите 3 карточки и сыграйте одну.</div>
-          <div class="hand-grid" id="handGrid"></div>
-          <div class="crisis-box" id="crisisBox"></div>
-        </section>
+
+          <div class="status-row">
+            <div><span>Общий ресурс:</span><b id="sharedResources">0</b></div>
+            <div><span>Кризисы:</span><b id="crisisCount">0</b></div>
+            <div><span>Игрок:</span><b id="playerRegionName">—</b></div>
+          </div>
+        </div>
+
+        <div class="panel event-panel">
+          <h2>Текущее событие</h2>
+          <div id="eventCard" class="event-card">
+            <p>Начните игру, чтобы получить событие.</p>
+          </div>
+        </div>
       </section>
 
-      <aside class="side-panel side-right">
-        <section class="panel details-panel">
-          <p class="eyebrow">Подробности</p>
-          <div id="detailsBox" class="details-box">Выберите регион, чтобы увидеть его особенности, текущую стадию и кризисы.</div>
-        </section>
+      <section class="layout">
+        <div class="panel map-panel">
+          <div class="section-title">
+            <h2>Интерактивная карта регионов</h2>
+            <span class="hint">Ваш регион выделен рамкой</span>
+          </div>
+          <div id="regionsBoard" class="regions-board"></div>
+        </div>
 
-        <section class="panel goal-panel">
-          <p class="eyebrow">Цель кампании</p>
-          <p>Провести Кубок Кавказа до 18 хода, сохранив интеграцию округа и не допустив критического спада регионов.</p>
-          <ul class="check-list" id="goalList"></ul>
-        </section>
+        <aside class="panel action-panel">
+          <h2>Действия игрока</h2>
+          <p id="turnHint" class="hint">
+            Выберите действие для своего региона. После вашего хода боты сделают свои ходы автоматически.
+          </p>
+          <div id="actions" class="actions"></div>
+          <button id="nextRoundBtn" class="secondary-btn hidden">Перейти к следующему раунду</button>
+          <button id="restartBtn" class="ghost-btn">Начать заново</button>
+        </aside>
+      </section>
 
-        <section class="panel log-panel">
-          <p class="eyebrow">Журнал ходов</p>
-          <div class="log-list" id="logList"></div>
-        </section>
-      </aside>
+      <section class="panel log-panel">
+        <div class="section-title">
+          <h2>Журнал игры</h2>
+          <button id="clearLogBtn" class="small-btn">Очистить</button>
+        </div>
+        <div id="log" class="log"></div>
+      </section>
     </main>
-  </div>
 
-  <div class="modal" id="modal" aria-hidden="true">
-    <div class="modal-card">
-      <button class="modal-close" id="modalClose" aria-label="Закрыть">×</button>
-      <div id="modalContent"></div>
+    <div id="modal" class="modal hidden">
+      <div class="modal-card">
+        <h2 id="modalTitle">Итог игры</h2>
+        <p id="modalText"></p>
+        <button id="modalRestartBtn" class="primary-btn">Играть снова</button>
+      </div>
     </div>
   </div>
 
-  <script src="assets/game.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
