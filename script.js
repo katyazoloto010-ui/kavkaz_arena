@@ -79,14 +79,14 @@ const events = [
     title: "Снижение интереса молодёжи",
     type: "кризис",
     text: "Молодёжь меньше участвует в мероприятиях. Нужно восстановить общественную активность.",
-    impact: { activity: -6, stability: -2 },
+    impact: { activity: -10, stability: -6, integration: -3 },
     crisis: true
   },
   {
     title: "Организационные трудности",
     type: "кризис",
     text: "Подготовка событий замедлилась. Требуются ресурсы и кооперация.",
-    impact: { economy: -4, stability: -3 },
+    impact: { economy: -8, stability: -7, activity: -3 },
     crisis: true
   },
   {
@@ -105,14 +105,14 @@ const events = [
     title: "Социальное напряжение",
     type: "кризис",
     text: "Общественная стабильность снизилась. Требуются меры поддержки.",
-    impact: { stability: -7, activity: -2 },
+    impact: { stability: -12, activity: -5, integration: -3 },
     crisis: true
   },
   {
     title: "Перегрузка организаторов",
     type: "кризис",
     text: "Слишком много мероприятий подряд снижает активность и стабильность.",
-    impact: { activity: -4, stability: -4, culture: 1 },
+    impact: { activity: -9, stability: -8, culture: -3 },
     crisis: true
   },
   {
@@ -308,6 +308,16 @@ function applyGlobalIntegration(value) {
   });
 }
 
+function applyGlobalImpact(impact) {
+  state.regions.forEach(region => {
+    applyImpact(region, impact);
+  });
+}
+
+function unresolvedCrisisRegions() {
+  return state.regions.filter(region => region.crisis || region.stats.stability < 40);
+}
+
 function takeAction(action) {
   const player = getPlayerRegion();
   if (state.phase !== "player" || state.actedThisRound) return;
@@ -347,6 +357,12 @@ function takeAction(action) {
   } else {
     if (action.key === "initiative") player.crisis = false;
     addLog(`${player.name} выполняет действие: «${action.title}». Последствия: ${describeEffect(effect)}.`);
+  }
+
+  if (player.crisis && action.key !== "initiative" && action.key !== "support") {
+    player.stats.stability = clamp(player.stats.stability - 4);
+    player.stats.activity = clamp(player.stats.activity - 3);
+    addLog(`Кризис в регионе ${player.name} не решён во время хода. Дополнительные последствия: -4 стабильность, -3 активность.`);
   }
 
   state.actedThisRound = true;
@@ -432,33 +448,62 @@ function chooseBotAction(region) {
 function districtPhase() {
   state.phase = "district";
 
-  const stability = averageStability();
-  const integration = averageIntegration();
-  const crises = crisisCount();
+  const unresolved = unresolvedCrisisRegions();
+  const crises = unresolved.length;
 
-  if (crises >= 3) {
-    state.sharedResources = Math.max(0, state.sharedResources - 2);
-    addLog("Общий этап округа: несколько регионов в кризисе. Общий ресурс снижен.");
-  } else if (stability > 65 && integration > 60) {
-    state.sharedResources = Math.min(SHARED_RESOURCE_LIMIT, state.sharedResources + 2);
-    addLog("Общий этап округа: регионы сохраняют баланс. Общий ресурс увеличен.");
+  if (crises > 0) {
+    const damage = {
+      stability: -4 * crises,
+      activity: -3 * crises,
+      integration: -2 * crises,
+      economy: -1 * crises
+    };
+
+    applyGlobalImpact(damage);
+    state.sharedResources = Math.max(0, state.sharedResources - crises);
+
+    addLog(`<strong>Цепная реакция кризиса:</strong> ${crises} нерешённ. кризис(а) ударили по всему округу. Последствия для всех регионов: ${describeEffect(damage)}.`);
+
+    unresolved.forEach(region => {
+      region.crisisTurns = (region.crisisTurns || 0) + 1;
+      if (region.crisisTurns >= 2) {
+        region.stats.stability = clamp(region.stats.stability - 6);
+        region.stats.activity = clamp(region.stats.activity - 4);
+        addLog(`Затяжной кризис в регионе ${region.name}: дополнительное снижение стабильности и активности.`);
+      }
+    });
   } else {
-    addLog("Общий этап округа: система пересчитала показатели регионов.");
+    addLog("Общий этап округа: нерешённых кризисов нет, округ сохраняет баланс.");
   }
 
-  if (state.sharedResources >= 3 && crises > 0) {
-    const weakest = [...state.regions].filter(r => r.crisis).sort((a, b) => a.stats.stability - b.stats.stability)[0];
+  const stability = averageStability();
+  const integration = averageIntegration();
+
+  if (crises === 0 && stability > 70 && integration > 65) {
+    state.sharedResources = Math.min(SHARED_RESOURCE_LIMIT, state.sharedResources + 1);
+    addLog("За устойчивое развитие округ получил +1 общий ресурс.");
+  }
+
+  if (state.sharedResources >= 4 && crises > 0) {
+    const weakest = unresolvedCrisisRegions().sort((a, b) => a.stats.stability - b.stats.stability)[0];
+
     if (weakest) {
-      state.sharedResources -= 3;
-      weakest.stats.stability = clamp(weakest.stats.stability + 8);
-      weakest.stats.activity = clamp(weakest.stats.activity + 4);
+      state.sharedResources -= 4;
+      weakest.stats.stability = clamp(weakest.stats.stability + 10);
+      weakest.stats.activity = clamp(weakest.stats.activity + 6);
+      weakest.stats.integration = clamp(weakest.stats.integration + 3);
       weakest.crisis = false;
-      addLog(`Коллективное решение: общий ресурс направлен на поддержку региона ${weakest.name}.`);
+      weakest.crisisTurns = 0;
+      addLog(`Коллективное решение: общий ресурс направлен на спасение региона ${weakest.name}. Расход: 4 общего ресурса.`);
     }
-  } else if (state.sharedResources >= 4 && state.cupReadiness < 75) {
-    state.sharedResources -= 4;
-    state.cupReadiness = clamp(state.cupReadiness + 10);
-    addLog("Коллективное решение: общий ресурс вложен в подготовку Кубка Кавказа.");
+  } else if (crises > 0) {
+    addLog("Коллективная помощь не сработала: общего ресурса не хватило для спасения кризисного региона.");
+  }
+
+  if (state.sharedResources >= 5 && state.cupReadiness < 100 && crises === 0) {
+    state.sharedResources -= 5;
+    state.cupReadiness = clamp(state.cupReadiness + 8);
+    addLog("Коллективное решение: часть общего ресурса вложена в подготовку Кубка. Расход: 5 общего ресурса.");
   }
 
   renderAll();
@@ -469,8 +514,8 @@ function checkEndOrNext() {
   const stability = averageStability();
   const crises = crisisCount();
 
-  if (stability <= 35 || crises >= 5) {
-    showEnd("Общий проигрыш", "Округ столкнулся с сильным кризисом. Стабильность упала слишком низко, а команда не успела восстановить баланс регионов.");
+  if (stability <= 45 || crises >= 3) {
+    showEnd("Общий проигрыш", "Округ столкнулся с сильным кризисом. Несколько нерешённых проблем ударили по всем регионам, и команда не успела восстановить баланс.");
     return;
   }
 

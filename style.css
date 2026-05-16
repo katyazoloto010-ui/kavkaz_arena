@@ -512,3 +512,12 @@ button:disabled {
   color: var(--muted);
   font-size: 12px;
 }
+
+
+.region-card.crisis {
+  background: rgba(184, 75, 66, 0.08);
+}
+
+.log-entry strong {
+  font-weight: 800;
+}
