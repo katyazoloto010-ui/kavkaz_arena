@@ -481,3 +481,34 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+
+.bot-status {
+  border: 1px solid var(--line);
+  background: rgba(77, 56, 40, .06);
+  border-radius: 18px;
+  padding: 12px;
+  margin-bottom: 12px;
+  display: grid;
+  gap: 5px;
+}
+
+.bot-status b {
+  color: var(--accent);
+}
+
+.bot-status span,
+.bot-status small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.region-card.active-bot {
+  border-color: #4d3828;
+  box-shadow: 0 0 0 3px rgba(77, 56, 40, .12), var(--shadow);
+}
+
+.resources span {
+  color: var(--muted);
+  font-size: 12px;
+}

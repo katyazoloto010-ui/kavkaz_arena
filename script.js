@@ -1,18 +1,23 @@
 const MAX_ROUNDS = 8;
+const CUP_MIN_READY = 60;
+const CUP_GOOD_READY = 80;
+const SHARED_RESOURCE_LIMIT = 12;
 
 const regionTemplates = [
   {
     name: "Дагестан",
     bonus: "Сильный культурный потенциал: культурные мероприятия дают +3 к культуре.",
     stats: { stability: 68, culture: 76, activity: 64, tourism: 58, integration: 54, economy: 55 },
-    resources: 5,
+    resources: 6,
+    resourceFocus: "Культура",
     bonusType: "culture"
   },
   {
     name: "Чеченская Республика",
     bonus: "Быстрое восстановление: действия против кризисов дают +3 к стабильности.",
     stats: { stability: 70, culture: 67, activity: 62, tourism: 54, integration: 52, economy: 58 },
-    resources: 5,
+    resources: 4,
+    resourceFocus: "Стабильность",
     bonusType: "stability"
   },
   {
@@ -20,20 +25,23 @@ const regionTemplates = [
     bonus: "Общественная поддержка: инициативы дают +3 к активности.",
     stats: { stability: 64, culture: 63, activity: 70, tourism: 50, integration: 56, economy: 50 },
     resources: 5,
+    resourceFocus: "Общественная поддержка",
     bonusType: "activity"
   },
   {
     name: "Северная Осетия — Алания",
     bonus: "Командная работа: межрегиональные проекты дают +3 к интеграции.",
     stats: { stability: 66, culture: 70, activity: 63, tourism: 57, integration: 62, economy: 54 },
-    resources: 5,
+    resources: 4,
+    resourceFocus: "Интеграция",
     bonusType: "integration"
   },
   {
     name: "Кабардино-Балкария",
     bonus: "Туристическая привлекательность: развитие туризма даёт +3 к туризму.",
     stats: { stability: 67, culture: 69, activity: 60, tourism: 68, integration: 55, economy: 56 },
-    resources: 5,
+    resources: 6,
+    resourceFocus: "Туризм",
     bonusType: "tourism"
   },
   {
@@ -41,13 +49,15 @@ const regionTemplates = [
     bonus: "Горные маршруты: подготовка Кубка дополнительно даёт +2 к готовности.",
     stats: { stability: 65, culture: 66, activity: 61, tourism: 65, integration: 53, economy: 55 },
     resources: 5,
+    resourceFocus: "Подготовка событий",
     bonusType: "cup"
   },
   {
     name: "Ставропольский край",
     bonus: "Экономическая база: каждый раунд получает +1 дополнительный ресурс.",
     stats: { stability: 72, culture: 61, activity: 60, tourism: 60, integration: 58, economy: 72 },
-    resources: 6,
+    resources: 7,
+    resourceFocus: "Экономика",
     bonusType: "economy"
   }
 ];
@@ -141,7 +151,7 @@ const playerActions = [
   {
     key: "cup",
     title: "Готовить Кубок Кавказа",
-    desc: "Расход: 3 ресурса. Повышает готовность финального события.",
+    desc: "Расход: 3 ресурса. Повышает готовность финального события. Минимум для проведения — 60.",
     cost: 3,
     cup: 14,
     effect: { tourism: 3, culture: 3 }
@@ -156,7 +166,10 @@ let state = {
   cupReadiness: 10,
   sharedResources: 4,
   phase: "setup",
-  actedThisRound: false
+  actedThisRound: false,
+  botQueue: [],
+  activeBotIndex: null,
+  lastBotAction: ""
 };
 
 const el = (id) => document.getElementById(id);
@@ -218,12 +231,26 @@ function randomEvent() {
   return events[Math.floor(Math.random() * events.length)];
 }
 
+function calculateIncome(region) {
+  let income = 1 + Math.floor(region.stats.economy / 45);
+
+  if (region.stats.tourism >= 65) income += 1;
+  if (region.stats.activity >= 65) income += 1;
+  if (region.stats.stability < 45) income -= 1;
+  if (region.crisis) income -= 1;
+
+  if (region.bonusType === "economy") income += 2;
+  if (region.bonusType === "tourism" && region.stats.tourism >= 60) income += 1;
+  if (region.bonusType === "culture" && region.stats.culture >= 70) income += 1;
+
+  return Math.max(1, income);
+}
+
 function startPlayerTurn() {
   state.phase = "player";
   state.actedThisRound = false;
   const player = getPlayerRegion();
-  let income = 2 + Math.floor(player.stats.economy / 35) + Math.floor(player.stats.tourism / 45);
-  if (player.bonusType === "economy") income += 1;
+  let income = calculateIncome(player);
   player.resources += income;
 
   state.currentEvent = randomEvent();
@@ -275,7 +302,7 @@ function takeAction(action) {
     addLog(`${player.name} помогает региону ${weakest.name}. Кризис ослаблен, интеграция округа выросла.`);
   } else if (action.key === "project") {
     applyGlobalIntegration(3);
-    state.sharedResources += action.shared || 0;
+    state.sharedResources = Math.min(SHARED_RESOURCE_LIMIT, state.sharedResources + (action.shared || 0));
     addLog(`${player.name} запускает межрегиональный проект. Округ получает общий ресурс и рост интеграции.`);
   } else if (action.key === "cup") {
     let cupGain = action.cup;
@@ -295,37 +322,67 @@ function takeAction(action) {
 }
 
 function botTurns() {
-  addLog("Боты выполняют свои ходы.");
-  state.regions.forEach((region, index) => {
-    if (index === state.selectedRegion) return;
+  state.botQueue = state.regions
+    .map((region, index) => index)
+    .filter(index => index !== state.selectedRegion);
 
-    let income = 2 + Math.floor(region.stats.economy / 40);
-    if (region.bonusType === "economy") income += 1;
-    region.resources += income;
+  state.activeBotIndex = null;
+  state.lastBotAction = "Боты начинают ходить по очереди.";
+  addLog("Боты начинают выполнять ходы по очереди.");
+  renderAll();
+  setTimeout(processNextBotTurn, 650);
+}
 
-    const event = randomEvent();
-    applyImpact(region, event.impact);
-    if (event.crisis) region.crisis = true;
+function processNextBotTurn() {
+  if (state.botQueue.length === 0) {
+    state.activeBotIndex = null;
+    state.lastBotAction = "Все боты завершили ходы.";
+    renderAll();
+    setTimeout(districtPhase, 650);
+    return;
+  }
 
-    const action = chooseBotAction(region);
-    if (region.resources >= action.cost) {
-      region.resources -= action.cost;
-      applyImpact(region, action.effect || {});
+  const index = state.botQueue.shift();
+  const region = state.regions[index];
+  state.activeBotIndex = index;
 
-      if (action.key === "initiative") region.crisis = false;
-      if (action.key === "project") {
-        applyGlobalIntegration(1);
-        state.sharedResources += 1;
-      }
-      if (action.key === "cup") {
-        let gain = action.cup;
-        if (region.bonusType === "cup") gain += 2;
-        state.cupReadiness = clamp(state.cupReadiness + gain);
-      }
+  let income = calculateIncome(region);
+  region.resources += income;
+
+  const event = randomEvent();
+  applyImpact(region, event.impact);
+  if (event.crisis) region.crisis = true;
+
+  const action = chooseBotAction(region);
+  let actionText = "";
+
+  if (region.resources >= action.cost) {
+    region.resources -= action.cost;
+    applyImpact(region, action.effect || {});
+
+    if (action.key === "initiative") region.crisis = false;
+
+    if (action.key === "project") {
+      applyGlobalIntegration(1);
+      state.sharedResources = Math.min(SHARED_RESOURCE_LIMIT, state.sharedResources + 1);
     }
-  });
 
-  districtPhase();
+    if (action.key === "cup") {
+      let gain = action.cup;
+      if (region.bonusType === "cup") gain += 2;
+      state.cupReadiness = clamp(state.cupReadiness + gain);
+    }
+
+    actionText = `Бот региона ${region.name}: получил ${income} ресурсов, событие «${event.title}», выбрал действие «${action.title}».`;
+  } else {
+    actionText = `Бот региона ${region.name}: получил ${income} ресурсов, событие «${event.title}», но не смог выполнить «${action.title}» из-за нехватки ресурсов.`;
+  }
+
+  state.lastBotAction = actionText;
+  addLog(actionText);
+  renderAll();
+
+  setTimeout(processNextBotTurn, 900);
 }
 
 function chooseBotAction(region) {
@@ -347,7 +404,7 @@ function districtPhase() {
     state.sharedResources = Math.max(0, state.sharedResources - 2);
     addLog("Общий этап округа: несколько регионов в кризисе. Общий ресурс снижен.");
   } else if (stability > 65 && integration > 60) {
-    state.sharedResources += 2;
+    state.sharedResources = Math.min(SHARED_RESOURCE_LIMIT, state.sharedResources + 2);
     addLog("Общий этап округа: регионы сохраняют баланс. Общий ресурс увеличен.");
   } else {
     addLog("Общий этап округа: система пересчитала показатели регионов.");
@@ -382,28 +439,97 @@ function checkEndOrNext() {
   }
 
   if (state.round >= MAX_ROUNDS) {
-    finishGame();
+    startCupFinal();
     return;
   }
 
   el("nextRoundBtn").classList.remove("hidden");
 }
 
-function finishGame() {
+function startCupFinal() {
+  state.phase = "cup";
+  renderHeader();
+  addLog("<strong>Финальный этап:</strong> начинается проведение Кубка Кавказа по хоббихорсингу.");
+
+  const stability = averageStability();
+  const integration = averageIntegration();
+  const culture = avg(state.regions.map(r => r.stats.culture));
+  const activity = avg(state.regions.map(r => r.stats.activity));
+  const tourism = avg(state.regions.map(r => r.stats.tourism));
+
+  if (state.cupReadiness < CUP_MIN_READY) {
+    addLog("Кубок не удалось провести полноценно: готовность ниже минимального уровня.");
+    finishGame("failed_cup");
+    return;
+  }
+
+  const stages = [
+    { name: "Гонки на скорость", base: tourism, need: 58 },
+    { name: "Прыжки через препятствия", base: activity, need: 58 },
+    { name: "Соревнование на стиль", base: culture, need: 60 },
+    { name: "Командные заезды", base: integration, need: 62 }
+  ];
+
+  let successStages = 0;
+
+  stages.forEach(stage => {
+    const readinessBonus = Math.floor(state.cupReadiness / 10);
+    const score = stage.base + readinessBonus + randomInt(-8, 8);
+    if (score >= stage.need) {
+      successStages++;
+      addLog(`Этап Кубка «${stage.name}» пройден успешно. Итоговый балл: ${score}.`);
+    } else {
+      addLog(`Этап Кубка «${stage.name}» прошёл с трудностями. Итоговый балл: ${score}.`);
+    }
+  });
+
+  if (successStages >= 3) {
+    state.regions.forEach(region => {
+      region.stats.culture = clamp(region.stats.culture + 5);
+      region.stats.activity = clamp(region.stats.activity + 4);
+      region.stats.tourism = clamp(region.stats.tourism + 5);
+      region.stats.integration = clamp(region.stats.integration + 4);
+    });
+    addLog("Кубок дал сильный эффект: выросли культура, туризм, активность и интеграция округа.");
+  } else if (successStages === 2) {
+    state.regions.forEach(region => {
+      region.stats.culture = clamp(region.stats.culture + 2);
+      region.stats.tourism = clamp(region.stats.tourism + 2);
+      region.stats.integration = clamp(region.stats.integration + 1);
+    });
+    addLog("Кубок состоялся, но эффект оказался средним: часть этапов прошла недостаточно успешно.");
+  } else {
+    state.regions.forEach(region => {
+      region.stats.stability = clamp(region.stats.stability - 4);
+      region.stats.activity = clamp(region.stats.activity - 3);
+    });
+    addLog("Кубок прошёл слабо: недостаточная подготовка снизила общественную активность и стабильность.");
+  }
+
+  finishGame(successStages >= 3 ? "strong_cup" : "weak_cup");
+}
+
+function finishGame(cupResult) {
   const stability = averageStability();
   const integration = averageIntegration();
   const culture = avg(state.regions.map(r => r.stats.culture));
   const activity = avg(state.regions.map(r => r.stats.activity));
 
-  if (state.cupReadiness >= 80 && stability >= 55 && integration >= 55) {
-    showEnd("Основная победа", "Кубок Кавказа по хоббихорсингу успешно проведён. Регионы сохранили стабильность и усилили межрегиональную интеграцию.");
+  if (cupResult === "strong_cup" && stability >= 55 && integration >= 55) {
+    showEnd("Основная победа", "Кубок Кавказа по хоббихорсингу успешно проведён. Большинство этапов прошло хорошо, регионы сохранили стабильность и усилили межрегиональную интеграцию.");
   } else if (culture >= 72 && activity >= 68) {
-    showEnd("Культурная победа", "Регионы достигли высокого уровня культурного развития и общественной активности. Округ укрепил культурную самобытность.");
+    showEnd("Культурная победа", "Даже без идеального Кубка регионы достигли высокого уровня культурного развития и общественной активности. Округ укрепил культурную самобытность.");
   } else if (integration >= 75 && stability >= 50) {
     showEnd("Интеграционная победа", "Игроки выполнили крупные межрегиональные проекты и добились устойчивого взаимодействия субъектов округа.");
+  } else if (cupResult === "failed_cup") {
+    showEnd("Общий проигрыш", "Кубок не удалось провести полноценно: готовность оказалась ниже минимального уровня. Команда не выполнила ключевую игровую цель.");
   } else {
-    showEnd("Общий проигрыш", "Команда не достигла условий победы. Подготовка Кубка или показатели регионов оказались недостаточными.");
+    showEnd("Общий проигрыш", "Кубок прошёл недостаточно успешно, а показатели регионов не позволили получить культурную или интеграционную победу.");
   }
+}
+
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 function nextRound() {
@@ -430,6 +556,7 @@ function renderAll() {
   renderEvent();
   renderRegions();
   renderActions();
+  renderBotStatus();
 }
 
 function renderHeader() {
@@ -439,6 +566,7 @@ function renderHeader() {
     player: "Ход игрока",
     bots: "Ходы ботов",
     district: "Общий этап округа",
+    cup: "Финал Кубка",
     setup: "Настройка"
   };
   el("phaseBadge").textContent = phases[state.phase] || "Игра";
@@ -470,9 +598,12 @@ function renderEvent() {
 function renderRegions() {
   const board = el("regionsBoard");
   board.innerHTML = "";
-  state.regions.forEach((region) => {
+  state.regions.forEach((region, index) => {
     const card = document.createElement("div");
-    card.className = "region-card" + (region.isPlayer ? " player" : "") + (region.crisis || region.stats.stability < 40 ? " crisis" : "");
+    card.className = "region-card" 
+      + (region.isPlayer ? " player" : "") 
+      + (index === state.activeBotIndex ? " active-bot" : "")
+      + (region.crisis || region.stats.stability < 40 ? " crisis" : "");
     card.innerHTML = `
       <div class="region-head">
         <b>${region.name}</b>
@@ -486,7 +617,10 @@ function renderRegions() {
         ${miniMetric("Интегр.", region.stats.integration)}
         ${miniMetric("Эконом.", region.stats.economy)}
       </div>
-      <div class="resources">Ресурсы: <b>${region.resources}</b>${region.crisis ? " · кризис" : ""}</div>
+      <div class="resources">
+        Ресурсы: <b>${region.resources}</b>${region.crisis ? " · кризис" : ""}<br>
+        <span>Профиль ресурсов: ${region.resourceFocus || "общий"}</span>
+      </div>
     `;
     board.appendChild(card);
   });
@@ -499,6 +633,23 @@ function miniMetric(label, value) {
       <div class="mini-line"><i style="width:${clamp(value)}%"></i></div>
       <b>${clamp(value)}</b>
     </div>
+  `;
+}
+
+function renderBotStatus() {
+  const existing = document.getElementById("botStatus");
+  if (!existing) return;
+
+  if (state.phase !== "bots") {
+    existing.innerHTML = "<b>Ход ботов:</b><span>Боты ожидают своей очереди.</span>";
+    return;
+  }
+
+  const active = state.activeBotIndex !== null ? state.regions[state.activeBotIndex] : null;
+  existing.innerHTML = `
+    <b>Ход ботов:</b>
+    <span>${active ? "Сейчас ходит: " + active.name : "Подготовка очереди ботов..."}</span>
+    <small>${state.lastBotAction || ""}</small>
   `;
 }
 
@@ -545,7 +696,10 @@ function restart() {
     cupReadiness: 10,
     sharedResources: 4,
     phase: "setup",
-    actedThisRound: false
+    actedThisRound: false,
+    botQueue: [],
+    activeBotIndex: null,
+    lastBotAction: ""
   };
   el("modal").classList.add("hidden");
   el("gameScreen").classList.add("hidden");
