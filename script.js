@@ -66,14 +66,14 @@ const events = [
   {
     title: "Рост интереса к региональному фестивалю",
     type: "положительное событие",
-    text: "В регионе вырос интерес к культурной программе. Можно усилить эффект мероприятием.",
-    impact: { culture: 3, activity: 2 }
+    text: "В регионе вырос интерес к культурной программе. Культура растёт, но организация требует расходов.",
+    impact: { culture: 3, activity: 2, economy: -1 }
   },
   {
     title: "Предложение о межрегиональном проекте",
     type: "нейтральное событие",
-    text: "Соседний регион предлагает совместный проект. Он требует ресурсов, но повышает интеграцию.",
-    impact: { integration: 2 }
+    text: "Соседний регион предлагает совместный проект. Интеграция растёт, но региону нужны организационные ресурсы.",
+    impact: { integration: 2, economy: -1 }
   },
   {
     title: "Снижение интереса молодёжи",
@@ -92,14 +92,14 @@ const events = [
   {
     title: "Приток туристов",
     type: "положительное событие",
-    text: "Регион стал заметнее для туристов. Можно вложиться в развитие маршрутов.",
-    impact: { tourism: 4, economy: 2 }
+    text: "Регион стал заметнее для туристов. Туризм и экономика растут, но повышается нагрузка на стабильность.",
+    impact: { tourism: 4, economy: 2, stability: -1 }
   },
   {
     title: "Культурный обмен между регионами",
     type: "положительное событие",
-    text: "Появилась возможность укрепить взаимодействие субъектов округа.",
-    impact: { integration: 4, culture: 2 }
+    text: "Появилась возможность укрепить взаимодействие субъектов округа, но требуется часть ресурсов.",
+    impact: { integration: 4, culture: 2, economy: -1 }
   },
   {
     title: "Социальное напряжение",
@@ -107,6 +107,19 @@ const events = [
     text: "Общественная стабильность снизилась. Требуются меры поддержки.",
     impact: { stability: -7, activity: -2 },
     crisis: true
+  },
+  {
+    title: "Перегрузка организаторов",
+    type: "кризис",
+    text: "Слишком много мероприятий подряд снижает активность и стабильность.",
+    impact: { activity: -4, stability: -4, culture: 1 },
+    crisis: true
+  },
+  {
+    title: "Экономический рывок",
+    type: "нейтральное событие",
+    text: "Экономика растёт, но культурные инициативы получают меньше внимания.",
+    impact: { economy: 5, culture: -2, integration: -1 }
   }
 ];
 
@@ -114,47 +127,54 @@ const playerActions = [
   {
     key: "festival",
     title: "Провести культурное мероприятие",
-    desc: "Расход: 2 ресурса. Повышает культуру и активность.",
+    desc: "Расход: 2 ресурса. + культура и активность, но - экономика из-за затрат.",
     cost: 2,
-    effect: { culture: 8, activity: 5 }
+    effect: { culture: 8, activity: 5, economy: -3 }
   },
   {
     key: "tourism",
     title: "Развить туризм",
-    desc: "Расход: 2 ресурса. Повышает туристическую привлекательность и экономику.",
+    desc: "Расход: 2 ресурса. + туризм и экономика, но - стабильность из-за нагрузки на регион.",
     cost: 2,
-    effect: { tourism: 8, economy: 4 }
+    effect: { tourism: 8, economy: 4, stability: -3 }
   },
   {
     key: "initiative",
     title: "Запустить общественную инициативу",
-    desc: "Расход: 2 ресурса. Восстанавливает стабильность и активность.",
+    desc: "Расход: 2 ресурса. + стабильность и активность, но - экономика из-за социальных расходов.",
     cost: 2,
-    effect: { stability: 8, activity: 4 }
+    effect: { stability: 8, activity: 4, economy: -2 }
   },
   {
     key: "support",
     title: "Помочь региону в кризисе",
-    desc: "Расход: 2 ресурса. Поддерживает самый слабый регион и повышает интеграцию.",
+    desc: "Расход: 2 ресурса. Помогает слабому региону, + интеграция, но ваш регион теряет часть ресурсов и экономики.",
     cost: 2,
-    effect: { integration: 5 },
+    effect: { integration: 5, economy: -2 },
     support: true
   },
   {
     key: "project",
     title: "Запустить межрегиональный проект",
-    desc: "Расход: 3 ресурса. Усиливает интеграцию и общий ресурс округа.",
+    desc: "Расход: 3 ресурса. + интеграция и культура, но - экономика из-за крупных затрат.",
     cost: 3,
-    effect: { integration: 9, culture: 3 },
-    shared: 2
+    effect: { integration: 9, culture: 3, economy: -4 },
+    shared: 1
   },
   {
     key: "cup",
     title: "Готовить Кубок Кавказа",
-    desc: "Расход: 3 ресурса. Повышает готовность финального события. Для проведения нужно 100% готовности.",
+    desc: "Расход: 3 ресурса. + готовность Кубка, + туризм и культура, но - экономика и активность из-за нагрузки.",
     cost: 3,
     cup: 14,
-    effect: { tourism: 3, culture: 3 }
+    effect: { tourism: 3, culture: 3, economy: -4, activity: -2 }
+  },
+  {
+    key: "economy",
+    title: "Укрепить экономику региона",
+    desc: "Расход: 1 ресурс. + экономика, но - культура и интеграция, потому что внимание уходит на хозяйственные задачи.",
+    cost: 1,
+    effect: { economy: 9, culture: -2, integration: -2 }
   }
 ];
 
@@ -267,6 +287,21 @@ function applyImpact(region, impact) {
   });
 }
 
+function describeEffect(effect) {
+  const names = {
+    stability: "стабильность",
+    culture: "культура",
+    activity: "активность",
+    tourism: "туризм",
+    integration: "интеграция",
+    economy: "экономика"
+  };
+
+  return Object.entries(effect || {})
+    .map(([key, value]) => `${value > 0 ? "+" : ""}${value} ${names[key] || key}`)
+    .join(", ");
+}
+
 function applyGlobalIntegration(value) {
   state.regions.forEach(region => {
     region.stats.integration = clamp(region.stats.integration + value);
@@ -299,19 +334,19 @@ function takeAction(action) {
     weakest.stats.activity = clamp(weakest.stats.activity + 5);
     weakest.crisis = false;
     applyGlobalIntegration(2);
-    addLog(`${player.name} помогает региону ${weakest.name}. Кризис ослаблен, интеграция округа выросла.`);
+    addLog(`${player.name} помогает региону ${weakest.name}. Последствия для вашего региона: ${describeEffect(effect)}. Кризис ослаблен, интеграция округа выросла.`);
   } else if (action.key === "project") {
     applyGlobalIntegration(3);
     state.sharedResources = Math.min(SHARED_RESOURCE_LIMIT, state.sharedResources + (action.shared || 0));
-    addLog(`${player.name} запускает межрегиональный проект. Округ получает общий ресурс и рост интеграции.`);
+    addLog(`${player.name} запускает межрегиональный проект. Последствия: ${describeEffect(effect)}. Округ получает общий ресурс и рост интеграции.`);
   } else if (action.key === "cup") {
     let cupGain = action.cup;
     if (player.bonusType === "cup") cupGain += 2;
     state.cupReadiness = clamp(state.cupReadiness + cupGain);
-    addLog(`${player.name} вкладывается в подготовку Кубка. Готовность Кубка +${cupGain}.`);
+    addLog(`${player.name} вкладывается в подготовку Кубка. Готовность Кубка +${cupGain}. Последствия: ${describeEffect(effect)}.`);
   } else {
     if (action.key === "initiative") player.crisis = false;
-    addLog(`${player.name} выполняет действие: «${action.title}». Показатели региона обновлены.`);
+    addLog(`${player.name} выполняет действие: «${action.title}». Последствия: ${describeEffect(effect)}.`);
   }
 
   state.actedThisRound = true;
@@ -373,7 +408,7 @@ function processNextBotTurn() {
       state.cupReadiness = clamp(state.cupReadiness + gain);
     }
 
-    actionText = `Бот региона ${region.name}: получил ${income} ресурсов, событие «${event.title}», выбрал действие «${action.title}».`;
+    actionText = `Бот региона ${region.name}: получил ${income} ресурсов, событие «${event.title}», выбрал действие «${action.title}» (${describeEffect(action.effect || {})}).`;
   } else {
     actionText = `Бот региона ${region.name}: получил ${income} ресурсов, событие «${event.title}», но не смог выполнить «${action.title}» из-за нехватки ресурсов.`;
   }
@@ -387,6 +422,7 @@ function processNextBotTurn() {
 
 function chooseBotAction(region) {
   if (region.crisis || region.stats.stability < 45 || region.stats.activity < 45) return playerActions.find(a => a.key === "initiative");
+  if (region.stats.economy < 42) return playerActions.find(a => a.key === "economy");
   if (state.cupReadiness < 70 && state.round >= 4) return playerActions.find(a => a.key === "cup");
   if (averageIntegration() < 62) return playerActions.find(a => a.key === "project");
   if (region.stats.tourism < 60) return playerActions.find(a => a.key === "tourism");
