@@ -449,19 +449,21 @@ function checkEndOrNext() {
 function startCupFinal() {
   state.phase = "cup";
   renderHeader();
-  addLog("<strong>Финальный этап:</strong> начинается проведение Кубка Кавказа по хоббихорсингу.");
+  addLog("<strong>Финальный этап:</strong> проверка готовности Кубка Кавказа по хоббихорсингу.");
+
+  if (state.cupReadiness < 100) {
+    addLog(`Кубок не проведён: готовность составляет ${state.cupReadiness}%, а для проведения нужно 100%.`);
+    showEnd("Общий проигрыш", `Кубок Кавказа не удалось провести: готовность составляет ${state.cupReadiness}%, а нужно 100%. Команда не выполнила ключевую игровую цель.`);
+    return;
+  }
+
+  addLog("Готовность Кубка достигла 100%. Начинается проведение финальных этапов.");
 
   const stability = averageStability();
   const integration = averageIntegration();
   const culture = avg(state.regions.map(r => r.stats.culture));
   const activity = avg(state.regions.map(r => r.stats.activity));
   const tourism = avg(state.regions.map(r => r.stats.tourism));
-
-  if (state.cupReadiness < CUP_MIN_READY) {
-    addLog(`Кубок не проведён: готовность составляет ${state.cupReadiness}%, а для проведения нужно 100%.`);
-    finishGame("failed_cup");
-    return;
-  }
 
   const stages = [
     { name: "Гонки на скорость", base: tourism, need: 58 },
@@ -473,8 +475,7 @@ function startCupFinal() {
   let successStages = 0;
 
   stages.forEach(stage => {
-    const readinessBonus = state.cupReadiness === 100 ? 10 : 0;
-    const score = stage.base + readinessBonus + randomInt(-8, 8);
+    const score = stage.base + 10 + randomInt(-8, 8);
     if (score >= stage.need) {
       successStages++;
       addLog(`Этап Кубка «${stage.name}» пройден успешно. Итоговый балл: ${score}.`);
@@ -483,30 +484,11 @@ function startCupFinal() {
     }
   });
 
-  if (successStages >= 3) {
-    state.regions.forEach(region => {
-      region.stats.culture = clamp(region.stats.culture + 5);
-      region.stats.activity = clamp(region.stats.activity + 4);
-      region.stats.tourism = clamp(region.stats.tourism + 5);
-      region.stats.integration = clamp(region.stats.integration + 4);
-    });
-    addLog("Кубок дал сильный эффект: выросли культура, туризм, активность и интеграция округа.");
-  } else if (successStages === 2) {
-    state.regions.forEach(region => {
-      region.stats.culture = clamp(region.stats.culture + 2);
-      region.stats.tourism = clamp(region.stats.tourism + 2);
-      region.stats.integration = clamp(region.stats.integration + 1);
-    });
-    addLog("Кубок состоялся, но эффект оказался средним: часть этапов прошла недостаточно успешно.");
+  if (successStages >= 3 && stability >= 55 && integration >= 55) {
+    showEnd("Основная победа", "Кубок Кавказа по хоббихорсингу успешно проведён: готовность достигла 100%, большинство этапов прошло хорошо, регионы сохранили стабильность и усилили межрегиональную интеграцию.");
   } else {
-    state.regions.forEach(region => {
-      region.stats.stability = clamp(region.stats.stability - 4);
-      region.stats.activity = clamp(region.stats.activity - 3);
-    });
-    addLog("Кубок прошёл слабо: недостаточная подготовка снизила общественную активность и стабильность.");
+    showEnd("Общий проигрыш", "Кубок был подготовлен на 100%, но этапы прошли недостаточно успешно или показатели округа оказались слишком низкими.");
   }
-
-  finishGame(successStages >= 3 ? "strong_cup" : "weak_cup");
 }
 
 function finishGame(cupResult) {
